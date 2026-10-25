@@ -39,6 +39,7 @@ h1{font-size:16px;color:#58a6ff}
 .prog-fill{height:100%;border-radius:2px;transition:width .3s}
 .pf-gen{background:linear-gradient(90deg,#238636,#3fb950)}
 .pf-prompt{background:linear-gradient(90deg,#1f6feb,#58a6ff)}
+.pf-ctx{background:#58a6ff}.pf-ctx.o{background:#d29922}.pf-ctx.r{background:#f85149}
 .prog-fill.indeterminate{width:35%;animation:progress-slide 1.2s ease-in-out infinite}
 @keyframes progress-slide{0%{transform:translateX(-100%)}100%{transform:translateX(286%)}}
 .mini-chart{height:40px;margin-top:6px}
@@ -489,7 +490,13 @@ async function update(){
     const tag=phase==='prompt'?'PROMPT':phase==='gen'?'GEN':'IDLE';
     const tagClass=phase==='prompt'?'tag-prompt':phase==='gen'?'tag-gen':'tag-idle';
     const shortModel=s._model?s._model.split('/').pop().split(':')[0]:'';
-    const context=Number.isFinite(Number(s.n_ctx))?(Number(s.n_ctx)/1024).toFixed(0)+'K':'--';
+    // context fill: n_prompt_tokens is the slot's current token count (prompt + generated so far)
+    const nCtx=Number(s.n_ctx),ctxUsed=Number(s.n_prompt_tokens);
+    const hasUsed=Number.isFinite(ctxUsed)&&ctxUsed>=0;
+    const kTok=n=>(n/1024).toFixed(n<10240?1:0)+'K';
+    const context=Number.isFinite(nCtx)&&nCtx>0?(hasUsed?kTok(ctxUsed)+' / ':'')+(nCtx/1024).toFixed(0)+'K':'--';
+    const ctxPct=Number.isFinite(nCtx)&&nCtx>0&&hasUsed?Math.max(0,Math.min(100,ctxUsed/nCtx*100)):null;
+    const ctxBar=ctxPct==null?'':`<div class="prog" style="margin-top:2px;margin-bottom:4px" title="${ctxUsed.toLocaleString()} / ${nCtx.toLocaleString()} tokens"><div class="prog-fill pf-ctx${ctxPct>=90?' r':ctxPct>=70?' o':''}" style="width:${ctxPct.toFixed(1)}%"></div></div>`;
     const budget=!active?'--':finiteBudget?remain.toLocaleString():'∞';
     let progress='';
     if(phase==='prompt')progress=`<div class="prog"><div class="prog-fill pf-prompt indeterminate"></div></div>
@@ -505,7 +512,7 @@ async function update(){
     <div class="r"><span>Prompt cached</span><b>${promptAvailable?promptCached.toLocaleString():'--'}</b></div>
     <div class="r"><span>Generated</span><b>${decoded.toLocaleString()}</b></div>
     <div class="r"><span>Remaining budget</span><b>${budget}</b></div>
-    <div class="r"><span>Context</span><b>${context}</b></div>
+    <div class="r"><span>Context</span><b>${context}${ctxPct==null?'':' ('+ctxPct.toFixed(ctxPct<10?1:0)+' %)'}</b></div>${ctxBar}
     <div class="r"><span>Requests</span><b>${sd.reqCount}</b></div>
     ${progress}<div class="mini-chart"></div>`;
     grid.appendChild(div);
